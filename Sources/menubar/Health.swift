@@ -52,7 +52,7 @@ enum Health {
             ? HealthCheck(level: .ok, title: L("Mac mini 模式已开启", "Mac mini Mode is on"),
                           detail: L("现在合上盖子，电脑会继续运行。", "Close the lid now and the Mac keeps running."))
             : HealthCheck(level: .info, title: L("Mac mini 模式当前关闭", "Mac mini Mode is currently off"),
-                          detail: L("没插电，或设定为「始终关闭」。现在合盖会正常睡眠。", "On battery, or set to Always Off. Closing the lid will sleep as usual.")))
+                          detail: L("合盖时遵循系统的睡眠设置。", "Closing the lid follows the system sleep settings.")))
 
         let overrides = notifyState("com.macminimode.overrides")
         checks.append(overrides == 0

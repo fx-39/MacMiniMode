@@ -6,6 +6,8 @@
 
 <p align="center">Keep a plugged-in MacBook running with the lid closed. Unplug it and it sleeps like a normal laptop again.</p>
 
+This fork adds an adjustable battery threshold to **Always On**. Build its installer with `bash scripts/build.sh` and open `build/MacMiniMode.pkg`. The download buttons below and the app’s update checker use the upstream project’s releases.
+
 <p align="center">
   <a href="https://github.com/Pama-Lee/MacMiniMode/releases/latest/download/MacMiniMode.pkg"><img src="docs/download-en.svg" height="48" alt="Download for macOS"></a>
   &nbsp;
@@ -28,7 +30,7 @@ The installer is signed and notarized by Apple, so macOS opens it without warnin
 
 ## What it does
 
-Mac mini Mode turns a MacBook into an always-on home server or headless Mac. It gives you clamshell mode without an external display or a dummy HDMI plug, and there is no `caffeinate` or `sudo pmset disablesleep` to remember. Because it follows the power adapter, your MacBook never stays awake inside your bag.
+Mac mini Mode turns a MacBook into an always-on home server or headless Mac. It gives you clamshell mode without an external display or a dummy HDMI plug, and there is no `caffeinate` or `sudo pmset disablesleep` to remember. In Automatic mode, it follows the power adapter.
 
 - **On when plugged in**: sleep is disabled on AC power, so your Mac keeps running with the lid closed and no display attached.
 - **Off when unplugged**: normal sleep returns on battery. If the lid is already closed, the Mac sleeps right away.
@@ -36,7 +38,9 @@ Mac mini Mode turns a MacBook into an always-on home server or headless Mac. It 
 - **Quit and Allow Sleep**: choosing Quit switches to Always Off and waits until sleep is allowed. The setting stays off after reconnecting power or restarting; choose Automatic or Always On to enable it again. Logging out, restarting or shutting down macOS preserves the selected mode. Other power settings are unchanged.
 - **Screen off with the lid closed**: the built-in display's backlight turns off when you close the lid and returns to its previous brightness when you open it. Only the backlight changes, so the Mac does not lock and remote desktop or running apps are not interrupted. It never touches an external display. Can be switched off in the menu.
 - **Health Check**: one click checks whether Remote Login, Screen Sharing, the battery and power settings are ready, and copies diagnostics for bug reports.
-- **Low-battery protection**: in Always On on battery, sleep is allowed again at 10% so the Mac never runs itself flat.
+- **Low-battery protection for Always On.** Open the menu bar and click **Low-Battery Protection** next to Always On. Enter a whole percentage from 1 to 100 (default 10%). You can set it in any mode. The setting takes effect immediately in Always On and survives restarts.
+  - On battery, your Mac can sleep when its charge reaches or falls below the threshold. The menu keeps Always On selected and shows that low-battery protection is allowing sleep. With the lid open, normal macOS sleep rules apply.
+  - Plugging in restores keep-awake immediately. On battery, it resumes five percentage points above the threshold, capped at 100%. For example, a 30% threshold allows sleep at 30% and resumes keep-awake at 35%. At a threshold of 100%, sleep is always allowed on battery.
 - **Command line**: `macminimode status` and `macminimode on|off|auto`, also usable from Shortcuts with Run Shell Script.
 
 ## Updates

@@ -17,7 +17,7 @@ func L(_ zh: String, _ en: String) -> String { isChinese ? zh : en }
 // 与 macmini-moded 里 Mode 的 rawValue / name 对应。
 let modes: [(name: String, title: String)] = [
     ("auto", L("自动（插电开启，拔电关闭）", "Automatic (on when plugged in)")),
-    ("on", L("始终开启（用电池也不睡眠）", "Always On (stays awake on battery)")),
+    ("on", L("始终开启", "Always On")),
     ("off", L("始终关闭", "Always Off")),
 ]
 
@@ -64,6 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let modeItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     let powerItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     let daemonItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    let protection = BatteryProtectionClient(prefix: notifyPrefix)
+    let protectionItem = NSMenuItem(title: "", action: #selector(editProtectionThreshold), keyEquivalent: "")
     var switchItems: [NSMenuItem] = []
     let updater = Updater()
     let health = HealthWindowController()
@@ -72,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let installItem = NSMenuItem(title: "", action: #selector(installUpdate), keyEquivalent: "")
     let autoCheckItem = NSMenuItem(title: L("自动检查更新", "Check for Updates Automatically"), action: #selector(toggleAutoCheck), keyEquivalent: "")
     var stateToken: Int32 = 0
+    var lowBatteryToken: Int32 = 0
     var timer: Timer?
     var lidTimer: Timer?
     let termSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
@@ -97,6 +100,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.tag = index
             switchItems.append(item)
             menu.addItem(item)
+            if mode.name == "on" {
+                protectionItem.target = self
+                protectionItem.indentationLevel = 1
+                menu.addItem(protectionItem)
+            }
         }
         lidScreenItem.target = self
         lidScreenItem.toolTip = L("只关背光，不锁屏。万一开盖后屏幕还是黑的，按键盘上的亮度增加键（F2）即可。",
@@ -131,6 +139,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if CommandLine.arguments.contains("--health-check") { health.show() }
 
         notify_register_dispatch("\(notifyPrefix).state", &stateToken, .main) { [weak self] _ in
+            self?.refreshSoon()
+        }
+        notify_register_dispatch("\(notifyPrefix).low-battery", &lowBatteryToken, .main) { [weak self] _ in
             self?.refreshSoon()
         }
 
@@ -195,21 +206,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func refresh() {
-        let enabled = rootDomainFlag("SleepDisabled")
+        let sleepDisabled = QuitPolicy.sleepDisabled()
+        let enabled = sleepDisabled == true
         let running = daemonRunning()
         var rawMode: UInt64 = 0
         notify_get_state(stateToken, &rawMode)
+        let threshold = running ? protection.threshold : nil
+        if protection.isSaving {
+            protectionItem.title = L("低电量保护：正在保存…", "Low-Battery Protection: Saving…")
+        } else if let threshold {
+            protectionItem.title = L("低电量保护：\(threshold)%…", "Low-Battery Protection: \(threshold)%…")
+        } else if running {
+            protectionItem.title = L("低电量保护：后台未提供阈值", "Low-Battery Protection: Threshold Unavailable")
+        } else {
+            protectionItem.title = L("低电量保护：后台服务不可用", "Low-Battery Protection: Service Unavailable")
+        }
+        protectionItem.isEnabled = threshold != nil && !protection.isSaving
 
         let symbol = !running ? "exclamationmark.triangle" : (enabled ? "macmini.fill" : "laptopcomputer")
         let name = L("Mac mini 模式", "Mac mini Mode")
         let image = NSImage(systemSymbolName: symbol, accessibilityDescription: name)
         image?.isTemplate = true
         statusItem.button?.image = image
-        statusItem.button?.toolTip = name + L("：", ": ") + (enabled ? L("开启", "On") : L("关闭", "Off"))
-
-        modeItem.title = name + L("：", ": ") + (enabled
-            ? L("开启（合盖继续运行）", "On (keeps running with the lid closed)")
-            : L("关闭（正常睡眠）", "Off (sleeps normally)"))
+        if rawMode == 1, threshold != nil, protection.isProtecting {
+            modeItem.title = sleepDisabled == false && QuitPolicy.assertionsReleased() == true
+                ? L("低电量保护中（已允许休眠）", "Low-battery protection active (sleep allowed)")
+                : L("低电量保护中（等待确认已允许休眠）", "Low-battery protection active (checking sleep status)")
+        } else {
+            modeItem.title = name + L("：", ": ") + (enabled
+                ? L("开启（合盖继续运行）", "On (keeps running with the lid closed)")
+                : L("关闭（正常睡眠）", "Off (sleeps normally)"))
+        }
+        statusItem.button?.toolTip = modeItem.title
         powerItem.title = L("供电：", "Power: ") + powerDescription()
         daemonItem.title = L("后台服务：", "Background service: ") + (running ? L("运行中", "Running") : L("未运行", "Not running"))
         for item in switchItems {

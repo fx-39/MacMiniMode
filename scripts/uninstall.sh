@@ -19,6 +19,7 @@ rm -f /Library/LaunchAgents/com.macminimode.menubar.plist \
       /Library/LaunchDaemons/com.macminimode.daemon.plist \
       /Library/PrivilegedHelperTools/macmini-moded \
       /var/db/macmini-mode \
+      /var/db/macmini-mode-threshold \
       /var/log/macmini-mode.log /var/log/macmini-mode.log.1
 # 只删我们自己建的那个软链接。
 [ -L /usr/local/bin/macminimode ] && rm -f /usr/local/bin/macminimode

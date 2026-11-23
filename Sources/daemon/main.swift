@@ -10,8 +10,12 @@ import IOKit.pwr_mgt
 import notify
 
 let dryRun = CommandLine.arguments.contains("--dry-run")
-let notifyPrefix = dryRun ? "com.macminimode.dryrun" : "com.macminimode"
+// 隔离测试用进程号区分并行实例；普通 dry-run 仍用原来的通知名。
+let dryRunPrefix = CommandLine.arguments.contains("--isolated-notifications")
+    ? "com.macminimode.dryrun.\(getpid())" : "com.macminimode.dryrun"
+let notifyPrefix = dryRun ? dryRunPrefix : "com.macminimode"
 let modeFile = "/var/db/macmini-mode"
+let thresholdFile = dryRun ? nil : URL(fileURLWithPath: "/var/db/macmini-mode-threshold")
 setvbuf(stdout, nil, _IOLBF, 0)
 
 func argValue(_ name: String) -> String? {
@@ -21,6 +25,7 @@ let logFile = argValue("--log-file") ?? "/var/log/macmini-mode.log"
 let logToFile = !dryRun || argValue("--log-file") != nil
 let simulatedPower = dryRun ? argValue("--simulate-power") : nil
 let simulatedBattery = dryRun ? argValue("--simulate-battery").flatMap { Int($0) } : nil
+let simulateClosedLid = dryRun && CommandLine.arguments.contains("--simulate-closed-lid")
 
 // 界面和日志跟随系统首选语言：中文环境用中文，其余用英文。
 let isChinese = Locale.preferredLanguages.first?.hasPrefix("zh") ?? false
@@ -55,7 +60,12 @@ enum State {
     nonisolated(unsafe) static var burstStart = Date.distantPast
     nonisolated(unsafe) static var burst = 0
     nonisolated(unsafe) static var overridesToken: Int32 = 0
+    nonisolated(unsafe) static var threshold = BatteryThreshold(file: thresholdFile)
+    nonisolated(unsafe) static var thresholdToken: Int32 = 0
+    nonisolated(unsafe) static var lowBatteryToken: Int32 = 0
     nonisolated(unsafe) static var lowBattery = false
+    nonisolated(unsafe) static var needsLidSleepCheck = false
+    nonisolated(unsafe) static var scheduledLidSleepCheck: DispatchWorkItem?
 }
 
 func log(_ message: String) {
@@ -126,23 +136,15 @@ func pmset(_ args: [String]) -> Bool {
     return true
 }
 
-// 「始终开启」时用电池硬撑，电量降到 10% 就放行睡眠，免得直接断电。回到 15% 以上或接上电源后恢复。
-func updateLowBattery() {
+func updateLowBattery(resetHysteresis: Bool) {
     let was = State.lowBattery
-    if State.mode == .on, !onACPower(), let percent = batteryPercent() {
-        if percent <= 10 {
-            State.lowBattery = true
-        } else if percent >= 15 {
-            State.lowBattery = false
-        }
-    } else {
-        State.lowBattery = false
-    }
+    State.lowBattery = State.mode == .on && !onACPower() && State.threshold.shouldProtect(
+        at: batteryPercent(), previouslyActive: was && !resetHysteresis)
     // 是切换模式导致的解除就不用记了，模式切换本身已经有一行日志。
     guard State.lowBattery != was, State.mode == .on else { return }
     log(State.lowBattery
-        ? L("电量降到 10%，暂时放行睡眠，免得直接断电", "Battery at 10%: allowing sleep for now to avoid a hard power-off")
-        : L("电量或供电已恢复，低电量保护解除", "Battery or power is back: low-battery protection lifted"))
+        ? L("低电量保护已触发（阈值 \(State.threshold.value)%）", "Low-battery protection triggered at the \(State.threshold.value)% threshold")
+        : L("低电量保护解除", "Low-battery protection lifted"))
 }
 
 func wantsMacMiniMode() -> Bool {
@@ -156,6 +158,7 @@ func wantsMacMiniMode() -> Bool {
 // 第二道保险。disablesleep 管的是合盖睡眠，但别的程序改电源设置时会把它清掉；
 // 这个断言管空闲睡眠，在 disablesleep 被清掉到我们补回去之间，机器不会因为没人操作而睡着。
 func holdAssertion(_ on: Bool) {
+    guard !dryRun else { return }
     if on, State.assertion == 0 {
         var id: IOPMAssertionID = 0
         let result = IOPMAssertionCreateWithName(
@@ -176,17 +179,55 @@ func holdAssertion(_ on: Bool) {
     }
 }
 
-func sync() {
-    updateLowBattery()
+func scheduleLidSleepCheck() {
+    // 清掉 disablesleep 不会主动让已合盖的机器睡下。延迟后再确认策略与内核的合盖判断。
+    guard State.scheduledLidSleepCheck == nil else { return }
+    let check = DispatchWorkItem {
+        State.scheduledLidSleepCheck = nil
+        guard !wantsMacMiniMode() else { return }
+        let sleepAllowed = dryRun ? State.applied == false : !rootDomainFlag("SleepDisabled")
+        guard sleepAllowed, State.assertion == 0 else {
+            State.needsLidSleepCheck = true
+            return
+        }
+        guard simulateClosedLid || (rootDomainFlag("AppleClamshellState") && rootDomainFlag("AppleClamshellCausesSleep")) else { return }
+        log(L("已合盖且允许睡眠 → 请求立即睡眠", "Lid closed and sleep allowed → requesting sleep now"))
+        if !pmset(["sleepnow"]) { State.needsLidSleepCheck = true }
+    }
+    State.scheduledLidSleepCheck = check
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: check)
+}
+
+func applyPowerPolicy(resetHysteresis: Bool = false) {
+    let wasProtected = State.lowBattery
+    updateLowBattery(resetHysteresis: resetHysteresis)
+    defer {
+        if State.lowBattery != wasProtected { publishLowBattery() }
+    }
     let want = wantsMacMiniMode()
     holdAssertion(want)
     // 以系统里的真实值为准，别的工具或手动 pmset 改掉了也要纠正回来。
     let current = dryRun ? State.applied : rootDomainFlag("SleepDisabled")
+    let overridden = State.applied == want
+    if want {
+        State.needsLidSleepCheck = false
+        State.scheduledLidSleepCheck?.cancel()
+        State.scheduledLidSleepCheck = nil
+    } else if (!wasProtected && State.lowBattery) || (current != want && !overridden) {
+        State.needsLidSleepCheck = true
+    }
+    // 允许睡眠或进入保护时检查一次。设置或断言释放失败则保留请求，等下次成功再安排。
+    var sleepAllowed = current == false
+    defer {
+        if State.needsLidSleepCheck, sleepAllowed, State.assertion == 0 {
+            State.needsLidSleepCheck = false
+            scheduleLidSleepCheck()
+        }
+    }
     guard want != current else {
         State.applied = want
         return
     }
-    let overridden = State.applied == want
     if overridden {
         // 万一对方也是一被改就立刻改回去，两边会无休止地拉锯。每 10 秒最多纠正 5 次，其余的留给下一轮。
         let now = Date()
@@ -199,6 +240,7 @@ func sync() {
     }
     guard pmset(["-a", "disablesleep", want ? "1" : "0"]) else { return }
     State.applied = want
+    sleepAllowed = !want
     if overridden {
         // 有的机器上每隔几分钟就会被改一次，只记前几次和之后每 50 次，免得日志刷屏。
         State.overrides += 1
@@ -221,23 +263,39 @@ func sync() {
         ? L("Mac mini 模式开启 (disablesleep 1)", "Mac mini mode on (disablesleep 1)")
         : L("Mac mini 模式关闭 (disablesleep 0)", "Mac mini mode off (disablesleep 0)")
     log("\(reason) → \(outcome)")
-
-    // 清掉 disablesleep 并不会让已经合盖的机器自己睡下去，这里补一脚，免得在包里发热。
-    // AppleClamshellCausesSleep 是内核自己的判断：接着外接显示器时为 No，就不打扰。
-    if !want {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            guard !wantsMacMiniMode(),
-                  rootDomainFlag("AppleClamshellState"),
-                  rootDomainFlag("AppleClamshellCausesSleep") else { return }
-            log(L("已合盖且允许睡眠 → 立即睡眠", "Lid closed and sleep allowed → sleeping now"))
-            pmset(["sleepnow"])
-        }
-    }
 }
 
 func publishMode() {
     notify_set_state(State.stateToken, State.mode.rawValue)
     notify_post("\(notifyPrefix).state")
+}
+
+func publishLowBattery() {
+    notify_set_state(State.lowBatteryToken, State.lowBattery ? 1 : 0)
+    notify_post("\(notifyPrefix).low-battery")
+}
+
+func publishThreshold() {
+    notify_set_state(State.thresholdToken, UInt64(State.threshold.value))
+    notify_post("\(notifyPrefix).threshold")
+}
+
+func setThreshold(_ commandToken: Int32) {
+    // 即使拒绝请求也回传已提交的值，前台只展示后台确认的阈值。
+    defer { publishThreshold() }
+    var requested: UInt64 = 0
+    guard notify_get_state(commandToken, &requested) == NOTIFY_STATUS_OK else { return }
+    do {
+        let changed = try State.threshold.set(requested, file: thresholdFile)
+        if changed {
+            log(L("低电量保护阈值设为 \(requested)%", "Low-battery threshold set to \(requested)%"))
+        }
+        applyPowerPolicy(resetHysteresis: changed)
+    } catch BatteryThreshold.Error.outOfRange {
+        log(L("无效的低电量保护阈值", "Invalid low-battery threshold") + ": \(requested)")
+    } catch {
+        log(L("保存低电量保护阈值失败", "Failed to save low-battery threshold") + ": \(error.localizedDescription)")
+    }
 }
 
 func setMode(_ mode: Mode) {
@@ -255,7 +313,7 @@ func setMode(_ mode: Mode) {
         }
     }
     publishMode()
-    sync()
+    applyPowerPolicy()
 }
 
 func shutdown(_ name: String) {
@@ -273,7 +331,7 @@ for (sig, name) in [(SIGTERM, "SIGTERM"), (SIGINT, "SIGINT")] {
     signalSources.append(source)
 }
 
-guard let runLoopSource = IOPSNotificationCreateRunLoopSource({ _ in sync() }, nil)?.takeRetainedValue() else {
+guard let runLoopSource = IOPSNotificationCreateRunLoopSource({ _ in applyPowerPolicy() }, nil)?.takeRetainedValue() else {
     log(L("无法注册电源变化通知", "Could not register for power source notifications"))
     exit(1)
 }
@@ -286,6 +344,12 @@ if !dryRun,
 }
 
 notify_register_check("\(notifyPrefix).state", &State.stateToken)
+notify_register_check("\(notifyPrefix).threshold", &State.thresholdToken)
+notify_register_check("\(notifyPrefix).low-battery", &State.lowBatteryToken)
+var thresholdCommandToken: Int32 = 0
+notify_register_dispatch("\(notifyPrefix).set-threshold", &thresholdCommandToken, .main) { token in
+    setThreshold(token)
+}
 // 菜单栏的体检窗口从这里读「被其他程序改动了多少次」。
 notify_register_check("\(notifyPrefix).overrides", &State.overridesToken)
 notify_set_state(State.overridesToken, 0)
@@ -301,14 +365,14 @@ for mode in Mode.allCases {
 var prefsToken: Int32 = 0
 notify_register_dispatch("com.apple.system.powermanagement.prefschange", &prefsToken, .main) { _ in
     for delay in [0, 0.2, 1, 2.5] {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { sync() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { applyPowerPolicy() }
     }
 }
 
 // 兜底：万一漏掉通知（比如睡眠期间拔电），每 5 秒对一次账。只读一个系统属性，开销可以忽略。
 let timer = DispatchSource.makeTimerSource(queue: .main)
 timer.schedule(deadline: .now() + 5, repeating: 5)
-timer.setEventHandler { sync() }
+timer.setEventHandler { applyPowerPolicy() }
 timer.resume()
 
 // 只记录，不据此自动睡眠：过热保护交给系统自己，这里留痕方便事后排查。
@@ -329,5 +393,7 @@ NotificationCenter.default.addObserver(forName: ProcessInfo.thermalStateDidChang
 log(L("macmini-moded 启动", "macmini-moded started") + (dryRun ? " (dry-run)" : "")
     + L("，模式：", ", mode: ") + State.mode.label)
 publishMode()
-sync()
+applyPowerPolicy()
+publishLowBattery()
+publishThreshold()
 CFRunLoopRun()

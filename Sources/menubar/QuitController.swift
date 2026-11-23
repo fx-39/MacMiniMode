@@ -66,7 +66,7 @@ enum QuitPolicy {
         return assertionsReleased() == true
     }
 
-    private static func sleepDisabled() -> Bool? {
+    static func sleepDisabled() -> Bool? {
         let root = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
         guard root != 0 else { return nil }
         defer { IOObjectRelease(root) }
