@@ -32,7 +32,7 @@ compile() {
     lipo -create "$BUILD/obj/$name-arm64" "$BUILD/obj/$name-x86_64" -output "$output"
 }
 
-echo "==> 编译 $VERSION（arm64 + x86_64）"
+echo "==> 编译 ${VERSION}（arm64 + x86_64）"
 rm -rf "$BUILD"
 mkdir -p "$BUILD/obj" "$APP/Contents/MacOS" "$APP/Contents/Resources" \
     "$(dirname "$DAEMON")" "$ROOT/Library/LaunchDaemons" "$ROOT/Library/LaunchAgents"
@@ -60,7 +60,7 @@ fi
 echo "==> 打包"
 # 不关掉 relocatable 的话，安装器会把应用装到它在磁盘上找到的同名副本那里。
 pkgbuild --analyze --root "$ROOT" "$BUILD/component.plist" >/dev/null
-/usr/libexec/PlistBuddy -c "Set :0:BundleIsRelocatable false" "$BUILD/component.plist"
+/usr/bin/plutil -replace 0.BundleIsRelocatable -bool NO "$BUILD/component.plist"
 pkgbuild --root "$ROOT" \
     --component-plist "$BUILD/component.plist" \
     --scripts Installer/scripts \

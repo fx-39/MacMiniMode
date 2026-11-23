@@ -104,13 +104,13 @@ func batteryPercent() -> Int? {
     return nil
 }
 
-func rootDomainFlag(_ key: String) -> Bool {
+func rootDomainFlag(_ key: String) -> Bool? {
     let root = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
-    guard root != 0 else { return false }
+    guard root != 0 else { return nil }
     defer { IOObjectRelease(root) }
     let value = IORegistryEntryCreateCFProperty(root, key as CFString, kCFAllocatorDefault, 0)?
         .takeRetainedValue()
-    return (value as? Bool) ?? false
+    return value as? Bool
 }
 
 @discardableResult
@@ -185,12 +185,14 @@ func scheduleLidSleepCheck() {
     let check = DispatchWorkItem {
         State.scheduledLidSleepCheck = nil
         guard !wantsMacMiniMode() else { return }
-        let sleepAllowed = dryRun ? State.applied == false : !rootDomainFlag("SleepDisabled")
+        let sleepAllowed = dryRun ? State.applied == false : rootDomainFlag("SleepDisabled") == false
         guard sleepAllowed, State.assertion == 0 else {
             State.needsLidSleepCheck = true
             return
         }
-        guard simulateClosedLid || (rootDomainFlag("AppleClamshellState") && rootDomainFlag("AppleClamshellCausesSleep")) else { return }
+        let lidShouldSleep = simulateClosedLid ||
+            (rootDomainFlag("AppleClamshellState") == true && rootDomainFlag("AppleClamshellCausesSleep") == true)
+        guard lidShouldSleep else { return }
         log(L("已合盖且允许睡眠 → 请求立即睡眠", "Lid closed and sleep allowed → requesting sleep now"))
         if !pmset(["sleepnow"]) { State.needsLidSleepCheck = true }
     }
@@ -207,7 +209,7 @@ func applyPowerPolicy(resetHysteresis: Bool = false) {
     let want = wantsMacMiniMode()
     holdAssertion(want)
     // 以系统里的真实值为准，别的工具或手动 pmset 改掉了也要纠正回来。
-    let current = dryRun ? State.applied : rootDomainFlag("SleepDisabled")
+    let current = dryRun ? State.applied : (rootDomainFlag("SleepDisabled") ?? false)
     let overridden = State.applied == want
     if want {
         State.needsLidSleepCheck = false
