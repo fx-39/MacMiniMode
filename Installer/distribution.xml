@@ -21,5 +21,5 @@
     <choice id="default" title="TITLE">
         <pkg-ref id="com.macminimode.pkg"/>
     </choice>
-    <pkg-ref id="com.macminimode.pkg" version="@VERSION@" onConclusion="none">MacMiniMode-component.pkg</pkg-ref>
+    <pkg-ref id="com.macminimode.pkg" version="@BUILD_NUMBER@" onConclusion="none">MacMiniMode-component.pkg</pkg-ref>
 </installer-gui-script>

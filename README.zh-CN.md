@@ -6,21 +6,23 @@
 
 <p align="center">让插着电的 MacBook 合上盖子也能一直运行；拔掉电源，它又是一台正常睡眠的笔记本。</p>
 
-这个分支支持自定义「始终开启」的低电量保护阈值。在本仓库运行 `bash scripts/build.sh`，再打开生成的 `build/MacMiniMode.pkg` 即可安装。下方按钮下载的是原版安装包。
+个人版支持自定义「始终开启」的低电量保护阈值。下方按钮可下载本分支最新发布的安装包。
 
 <p align="center">
-  <a href="https://github.com/Pama-Lee/MacMiniMode/releases/latest/download/MacMiniMode.pkg"><img src="docs/download-zh.svg" height="48" alt="下载安装包"></a>
+  <a href="https://github.com/fx-39/MacMiniMode/releases/latest/download/MacMiniMode.pkg"><img src="docs/download-zh.svg" height="48" alt="下载安装包"></a>
 </p>
 
 <p align="center"><a href="README.md">English</a> · <b>简体中文</b></p>
 
-## 安装原版
+## 安装个人版
+
+支持 macOS 12 及以上，Apple 芯片和 Intel 均可。v1.00 安装包没有 Developer ID 签名，也未经 Apple 公证，macOS 的 Gatekeeper 可能会阻止打开。
 
 1. 点上面的「下载安装包」，会得到一个 `MacMiniMode.pkg`。
 2. 双击打开，一路点「继续」，中途输入一次开机密码。
 3. 装完菜单栏会多出一个图标，这时已经在工作了，不用重启。
 
-安装包已签名并通过 Apple 公证，打开时不会提示「无法验证开发者」。支持 macOS 12 及以上，Apple 芯片和 Intel 均可。
+如需在本机构建，下载 v1.00 的源码，在项目目录运行 `bash scripts/build.sh`，再打开生成的 `build/MacMiniMode.pkg`。[v1.00 发布页与源码](https://github.com/fx-39/MacMiniMode/releases/tag/v1.00)
 
 <p align="center">
   <img src="docs/installer-zh.png" width="620" alt="Mac mini 模式安装器">
@@ -43,7 +45,7 @@
 
 ## 更新个人版
 
-个人版手动更新。在本分支要安装的源码版本上运行 `bash scripts/build.sh`，再打开新生成的本地安装包 `build/MacMiniMode.pkg`，按提示升级应用和后台服务。
+个人版手动更新。在本分支的发布页下载最新版 `MacMiniMode.pkg`，打开后按提示更新应用和后台服务。[个人版发布页](https://github.com/fx-39/MacMiniMode/releases)
 
 ## 遇到问题
 

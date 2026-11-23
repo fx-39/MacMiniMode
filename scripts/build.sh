@@ -9,6 +9,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 VERSION=${VERSION:-$(cat VERSION)}
+# VERSION 是对外版本号；每次发布时递增 BUILD_NUMBER，供系统安装器判定升级。
+BUILD_NUMBER=${BUILD_NUMBER:-$(cat BUILD_NUMBER)}
 MIN_OS=12.0
 BUILD=build
 ROOT=$BUILD/root
@@ -40,7 +42,7 @@ mkdir -p "$BUILD/obj" "$APP/Contents/MacOS" "$APP/Contents/Resources" \
 compile Sources/daemon "$DAEMON"
 compile Sources/menubar "$APP/Contents/MacOS/MacMiniMode"
 
-sed "s/@VERSION@/$VERSION/g" Resources/Info.plist > "$APP/Contents/Info.plist"
+sed -e "s/@VERSION@/$VERSION/g" -e "s/@BUILD_NUMBER@/$BUILD_NUMBER/g" Resources/Info.plist > "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 install -m 755 scripts/uninstall.sh Resources/macminimode "$APP/Contents/Resources/"
 install -m 644 Resources/com.macminimode.daemon.plist "$ROOT/Library/LaunchDaemons/"
@@ -65,12 +67,12 @@ pkgbuild --root "$ROOT" \
     --component-plist "$BUILD/component.plist" \
     --scripts Installer/scripts \
     --identifier com.macminimode.pkg \
-    --version "$VERSION" \
+    --version "$BUILD_NUMBER" \
     --install-location / \
     --ownership recommended \
     "$BUILD/MacMiniMode-component.pkg" >/dev/null
 
-sed "s/@VERSION@/$VERSION/g" Installer/distribution.xml > "$BUILD/distribution.xml"
+sed "s/@BUILD_NUMBER@/$BUILD_NUMBER/g" Installer/distribution.xml > "$BUILD/distribution.xml"
 PRODUCT=(productbuild --distribution "$BUILD/distribution.xml" --resources Installer/Resources --package-path "$BUILD")
 if [ -n "$PKG_IDENTITY" ]; then
     echo "    $PKG_IDENTITY"

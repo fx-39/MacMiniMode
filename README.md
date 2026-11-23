@@ -6,23 +6,25 @@
 
 <p align="center">Keep a plugged-in MacBook running with the lid closed. Unplug it and it sleeps like a normal laptop again.</p>
 
-This fork adds an adjustable battery threshold to **Always On**. Build its installer with `bash scripts/build.sh` and open `build/MacMiniMode.pkg`. The download buttons below provide the original upstream version.
+This personal edition adds an adjustable battery threshold to **Always On**. The buttons below download the latest installer from this fork.
 
 <p align="center">
-  <a href="https://github.com/Pama-Lee/MacMiniMode/releases/latest/download/MacMiniMode.pkg"><img src="docs/download-en.svg" height="48" alt="Download for macOS"></a>
+  <a href="https://github.com/fx-39/MacMiniMode/releases/latest/download/MacMiniMode.pkg"><img src="docs/download-en.svg" height="48" alt="Download for macOS"></a>
   &nbsp;
-  <a href="https://github.com/Pama-Lee/MacMiniMode/releases/latest/download/MacMiniMode.pkg"><img src="docs/download-zh.svg" height="48" alt="下载安装包"></a>
+  <a href="https://github.com/fx-39/MacMiniMode/releases/latest/download/MacMiniMode.pkg"><img src="docs/download-zh.svg" height="48" alt="下载安装包"></a>
 </p>
 
 <p align="center"><b>English</b> · <a href="README.zh-CN.md">简体中文（安装说明）</a></p>
 
-## Install the upstream version
+## Install the personal edition
+
+Requires macOS 12 or later on Apple silicon or Intel. The v1.00 installer ships without a Developer ID signature or Apple notarization, so Gatekeeper may block it.
 
 1. Click **Download for macOS** above to get `MacMiniMode.pkg`.
 2. Double-click it and follow the installer. You will be asked for your Mac password once.
 3. A new icon appears in the menu bar. It is already working, no restart needed.
 
-The installer is signed and notarized by Apple, so macOS opens it without warnings. Requires macOS 12 or later, on Apple silicon or Intel.
+To build locally, download the source code for v1.00, run `bash scripts/build.sh` from the project directory, then open `build/MacMiniMode.pkg`. [v1.00 release and source code](https://github.com/fx-39/MacMiniMode/releases/tag/v1.00)
 
 <p align="center">
   <img src="docs/installer-en.png" width="620" alt="Mac mini Mode installer">
@@ -45,7 +47,7 @@ Mac mini Mode turns a MacBook into an always-on home server or headless Mac. It 
 
 ## Update this fork
 
-Updates are manual. Build the desired revision of this fork with `bash scripts/build.sh`, then open the new local `build/MacMiniMode.pkg` and follow the installer to upgrade the app and its background service.
+Updates are manual. Download `MacMiniMode.pkg` from the latest release of this fork and follow the installer to update the app and its background service. [Personal edition releases](https://github.com/fx-39/MacMiniMode/releases)
 
 ## Troubleshooting
 
