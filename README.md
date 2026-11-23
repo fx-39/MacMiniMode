@@ -6,7 +6,7 @@
 
 <p align="center">Keep a plugged-in MacBook running with the lid closed. Unplug it and it sleeps like a normal laptop again.</p>
 
-This fork adds an adjustable battery threshold to **Always On**. Build its installer with `bash scripts/build.sh` and open `build/MacMiniMode.pkg`. The download buttons below and the app’s update checker use the upstream project’s releases.
+This fork adds an adjustable battery threshold to **Always On**. Build its installer with `bash scripts/build.sh` and open `build/MacMiniMode.pkg`. The download buttons below provide the original upstream version.
 
 <p align="center">
   <a href="https://github.com/Pama-Lee/MacMiniMode/releases/latest/download/MacMiniMode.pkg"><img src="docs/download-en.svg" height="48" alt="Download for macOS"></a>
@@ -16,7 +16,7 @@ This fork adds an adjustable battery threshold to **Always On**. Build its insta
 
 <p align="center"><b>English</b> · <a href="README.zh-CN.md">简体中文（安装说明）</a></p>
 
-## Install
+## Install the upstream version
 
 1. Click **Download for macOS** above to get `MacMiniMode.pkg`.
 2. Double-click it and follow the installer. You will be asked for your Mac password once.
@@ -43,13 +43,13 @@ Mac mini Mode turns a MacBook into an always-on home server or headless Mac. It 
   - Plugging in restores keep-awake immediately. On battery, it resumes five percentage points above the threshold, capped at 100%. For example, a 30% threshold allows sleep at 30% and resumes keep-awake at 35%. At a threshold of 100%, sleep is always allowed on battery.
 - **Command line**: `macminimode status` and `macminimode on|off|auto`, also usable from Shortcuts with Run Shell Script.
 
-## Updates
+## Update this fork
 
-Once a day the app asks GitHub whether a newer version exists. If so it downloads the installer, verifies its signature, and asks before installing; Install opens the system installer. To turn this off, uncheck **Check for Updates Automatically** in the menu and use **Check for Updates…** when you want.
+Updates are manual. Build the desired revision of this fork with `bash scripts/build.sh`, then open the new local `build/MacMiniMode.pkg` and follow the installer to upgrade the app and its background service.
 
 ## Troubleshooting
 
-Update to the latest version first. If your Mac still sleeps with the lid closed, choose **Health Check…** from the menu bar icon, click **Copy Diagnostics**, and paste it in [Issues](../../issues). A common cause is remote desktop or cleaner software that rewrites power settings on a timer; the app now restores the setting right away and notes it in the log.
+If your Mac sleeps unexpectedly with the lid closed, choose **Health Check…** from the menu bar icon, click **Copy Diagnostics**, and paste it in [Issues](../../issues). A common cause is remote desktop or cleaner software that rewrites power settings on a timer; the app now restores the setting right away and notes it in the log.
 
 If the screen is still dark after you open the lid (rare, for example if the app was force-quit while the lid was closed), press the brightness-up key (F2). Over a remote connection you can also run `macminimode screen-on`.
 
