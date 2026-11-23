@@ -100,12 +100,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.tag = index
             switchItems.append(item)
             menu.addItem(item)
-            if mode.name == "on" {
-                protectionItem.target = self
-                protectionItem.indentationLevel = 1
-                menu.addItem(protectionItem)
-            }
         }
+        menu.addItem(.separator())
+        protectionItem.target = self
+        menu.addItem(protectionItem)
         lidScreenItem.target = self
         lidScreenItem.toolTip = L("只关背光，不锁屏。万一开盖后屏幕还是黑的，按键盘上的亮度增加键（F2）即可。",
                                   "Only the backlight is switched off; the Mac does not lock. If the screen is still dark after opening the lid, press the brightness-up key (F2).")
@@ -212,16 +210,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         var rawMode: UInt64 = 0
         notify_get_state(stateToken, &rawMode)
         let threshold = running ? protection.threshold : nil
-        if protection.isSaving {
-            protectionItem.title = L("低电量保护：正在保存…", "Low-Battery Protection: Saving…")
-        } else if let threshold {
-            protectionItem.title = L("低电量保护：\(threshold)%…", "Low-Battery Protection: \(threshold)%…")
-        } else if running {
-            protectionItem.title = L("低电量保护：后台未提供阈值", "Low-Battery Protection: Threshold Unavailable")
-        } else {
-            protectionItem.title = L("低电量保护：后台服务不可用", "Low-Battery Protection: Service Unavailable")
-        }
+        protectionItem.title = protection.isSaving
+            ? L("正在保存阈值…", "Saving Threshold…")
+            : L("调整低电量阈值…", "Adjust Low-Battery Threshold…")
         protectionItem.isEnabled = threshold != nil && !protection.isSaving
+        protectionItem.toolTip = threshold == nil
+            ? L("后台服务未提供阈值。", "The background service has not provided a threshold.")
+            : nil
 
         let symbol = !running ? "exclamationmark.triangle" : (enabled ? "macmini.fill" : "laptopcomputer")
         let name = L("Mac mini 模式", "Mac mini Mode")
@@ -241,6 +236,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         powerItem.title = L("供电：", "Power: ") + powerDescription()
         daemonItem.title = L("后台服务：", "Background service: ") + (running ? L("运行中", "Running") : L("未运行", "Not running"))
         for item in switchItems {
+            let mode = modes[item.tag]
+            if mode.name == "on" {
+                item.title = threshold.map { percent in
+                    L("始终开启（≤\(percent)% 可休眠）", "Always On (allow sleep at ≤\(percent)%)")
+                } ?? mode.title
+            }
             item.isEnabled = running
             item.state = running && item.tag == Int(rawMode) ? .on : .off
         }

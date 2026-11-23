@@ -11,8 +11,8 @@ extension AppDelegate {
         let alert = NSAlert()
         alert.messageText = L("低电量保护", "Low-Battery Protection")
         let instructions = L(
-            "在「始终开启」模式下，使用电池时，电量达到或低于这个百分比就允许 Mac 休眠。请输入 1 到 100 的整数。",
-            "In Always On mode, the Mac allows sleep on battery at or below this percentage. Enter a whole number from 1 to 100.")
+            "请输入 1 到 100 的整数。使用电池时，电量降至此值即允许休眠。插电后，「始终开启」会立即恢复保活。",
+            "Enter a whole number from 1 to 100. On battery, Always On allows sleep at or below this level. Plugging in resumes Always On immediately.")
         alert.informativeText = instructions
         alert.addButton(withTitle: L("保存", "Save"))
         alert.addButton(withTitle: L("取消", "Cancel")).keyEquivalent = "\u{1b}"
